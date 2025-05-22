@@ -1,0 +1,7 @@
+psutil
+wmi
+pynvml
+PyQt6
+pystray
+Pillow
+qtawesome
