@@ -1,7 +1,19 @@
-psutil
-wmi
-pynvml
-PyQt6
-pystray
-Pillow
-qtawesome
+# Core system monitoring
+psutil>=5.9.0
+wmi>=1.5.1; platform_system=="Windows"
+pynvml>=11.5.0; platform_system=="Windows" or platform_system=="Linux"
+
+# GUI and visualization
+PyQt6>=6.4.0
+qtawesome>=1.2.3
+
+# System tray functionality
+pystray>=0.19.4
+Pillow>=9.3.0
+
+# Optional - for enhanced metrics on Linux
+py3nvml>=0.2.7; platform_system=="Linux"
+
+# Development tools (optional)
+pyinstaller>=5.7.0; platform_system=="Windows"
+pywin32>=305; platform_system=="Windows"

@@ -19,10 +19,9 @@ class RAMMetricsCollector:
     def __init__(self):
         self.platform_system = platform.system()
 
-    # Cache para evitar llamadas repetidas a WMI que son costosas
     _lhm_ram_temp_cache = None
     _lhm_ram_cache_time = 0
-    _lhm_ram_cache_ttl = 5  # segundos
+    _lhm_ram_cache_ttl = 5 
     
     def _get_lhm_ram_metrics(self) -> Optional[Dict[str, float]]:
         """Get RAM metrics from LibreHardwareMonitor through WMI"""
@@ -42,7 +41,6 @@ class RAMMetricsCollector:
             # Configurar timeout para operaciones WMI para evitar bloqueos en la UI
             lhm_wmi_connection = wmi.WMI(namespace=r"root\LibreHardwareMonitor")
             
-            # Usar una consulta más específica en lugar de obtener todos los sensores
             wql = "SELECT Value FROM Sensor WHERE SensorType='Temperature' AND Name LIKE '%RAM%' OR Name LIKE '%Memory%'"
             results = lhm_wmi_connection.query(wql)
             
@@ -52,7 +50,7 @@ class RAMMetricsCollector:
                         ram_temp = result.Value
                         break
             
-            # Actualizar caché
+            # Update cache
             RAMMetricsCollector._lhm_ram_temp_cache = ram_temp
             RAMMetricsCollector._lhm_ram_cache_time = current_time
                     

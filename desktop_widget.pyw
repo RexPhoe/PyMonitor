@@ -24,6 +24,7 @@ import qtawesome as qta
 
 from monitor.utils.hardware_monitor import HardwareMonitor
 from settings_dialog import SettingsDialog
+from console_handler import ConsoleHandler
 
 
 class MetricsWorker(QObject):
@@ -770,35 +771,45 @@ class HardwareWidget(QMainWindow):
         # Create system tray icon
         self.tray_icon = QSystemTrayIcon(self)
         
-        # Set icon
-        self.update_tray_icon()
+        # Create menu for system tray
+        self.tray_menu = QMenu()
         
-        # Create tray menu
-        tray_menu = QMenu()
-        
-        # Add actions
-        settings_action = QAction("Settings", self)
-        settings_action.triggered.connect(self.open_settings)
-        tray_menu.addAction(settings_action)
-        
-        # Hide/Show action
-        self.toggle_action = QAction("Hide", self)
+        # Widget visibility option
+        self.toggle_action = QAction("Hide")
         self.toggle_action.triggered.connect(self.toggle_visibility)
-        tray_menu.addAction(self.toggle_action)
+        self.tray_menu.addAction(self.toggle_action)
         
-        # Exit action
-        exit_action = QAction("Exit", self)
-        exit_action.triggered.connect(self.exit_app)
-        tray_menu.addAction(exit_action)
+        # Settings option with icon
+        self.settings_action = QAction(qta.icon("fa5s.cog"), "Settings")
+        self.settings_action.triggered.connect(self.open_settings)
+        self.tray_menu.addAction(self.settings_action)
         
-        # Set the menu
-        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_menu.addSeparator()
+        
+        # Console toggle option
+        self.console_action = QAction("Show Console")
+        self.console_action.triggered.connect(self.toggle_console)
+        self.tray_menu.addAction(self.console_action)
+        
+        self.tray_menu.addSeparator()
+        
+        # Exit option
+        self.exit_action = QAction("Exit")
+        self.exit_action.triggered.connect(self.exit_app)
+        self.tray_menu.addAction(self.exit_action)
+        
+        # Set the tray icon and its menu
+        self.tray_icon.setIcon(qta.icon("fa5s.desktop", color="blue"))
+        self.tray_icon.setToolTip("Hardware Monitor")
+        self.tray_icon.setContextMenu(self.tray_menu)
+        
+        # Connect signals before showing
+        self.tray_icon.activated.connect(self.tray_icon_activated)
         
         # Show the tray icon
         self.tray_icon.show()
         
-        # Connect signals
-        self.tray_icon.activated.connect(self.tray_icon_activated)
+        print("System tray menu created with Settings option")
     
     def update_tray_icon(self):
         """Update the tray icon based on system status"""
@@ -840,11 +851,11 @@ class HardwareWidget(QMainWindow):
         """Toggle widget visibility"""
         if self.isVisible():
             self.hide()
-            self.toggle_action.setText("Show")
+            self.toggle_action.setText("Show Widget")
         else:
             self.show()
             self.apply_position()
-            self.toggle_action.setText("Hide")
+            self.toggle_action.setText("Hide Widget")
     
     def open_settings(self):
         """Open the settings dialog"""
@@ -898,6 +909,10 @@ class HardwareWidget(QMainWindow):
         # Start worker thread
         self.metrics_worker.start(interval=interval)
     
+    def toggle_console(self):
+        """Toggle console window visibility"""
+        toggle_console_handler(self)
+    
     def exit_app(self):
         """Exit the application"""
         # Stop the metrics worker thread
@@ -905,6 +920,10 @@ class HardwareWidget(QMainWindow):
         
         # Save configuration before exit
         self.save_config()
+        
+        # Show console before exit so user can see any final messages
+        if ConsoleHandler.is_windows():
+            ConsoleHandler.show_console()
         
         # Quit the application
         QApplication.quit()
@@ -943,11 +962,27 @@ class HardwareWidget(QMainWindow):
             event.accept()
 
 
+def toggle_console_handler(widget):
+    """Toggle console visibility and update menu item text"""
+    if ConsoleHandler.toggle_console():
+        # Update menu text based on new state
+        is_visible = ConsoleHandler.is_console_visible()
+        if hasattr(widget, 'console_action'):
+            widget.console_action.setText("Hide Console" if is_visible else "Show Console")
+
 def main():
+    # Create QApplication first
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)  # Keep running when window is closed
     
+    # Hide console window by default on Windows
+    if ConsoleHandler.is_windows():
+        ConsoleHandler.hide_console()
+    
+    # Create widget after hiding console
     widget = HardwareWidget()
+    
+    # Show the widget
     widget.show()
     
     sys.exit(app.exec())
