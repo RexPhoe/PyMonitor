@@ -2,6 +2,37 @@
 
 A lightweight desktop widget for real-time hardware monitoring, displaying CPU, GPU, RAM, and network metrics in a customizable, always-on-top interface.
 
+## Project Structure
+
+The project has been refactored into a modular, maintainable architecture:
+
+```
+PyMonitor/
+├── src/                  # Main source code
+│   ├── core/             # Core functionality
+│   │   ├── config_manager.py    # Configuration handling
+│   │   └── metrics_worker.py    # Background metrics collection
+│   ├── ui/               # User interface components
+│   │   ├── main_window.py       # Main application window
+│   │   ├── metrics_display.py   # Widget for displaying metrics
+│   │   ├── metrics_formatter.py # Formatting metrics for display
+│   │   ├── position_manager.py  # Managing widget position
+│   │   └── system_tray.py       # System tray functionality
+│   └── utils/            # Utility functions
+│       └── console_handler.py   # Console visibility management
+├── monitor/              # Hardware monitoring modules
+│   └── utils/            # Monitoring utilities
+│       ├── cpu_metrics.py       # CPU metrics collection
+│       ├── gpu_metrics.py       # GPU metrics collection
+│       ├── hardware_monitor.py  # Main hardware monitoring
+│       ├── network_metrics.py   # Network metrics collection
+│       └── ram_metrics.py       # RAM metrics collection
+├── desktop_widget.pyw    # Main entry point (Windows)
+├── settings_dialog.py    # Settings configuration dialog
+├── config.json           # User configuration
+└── requirements.txt      # Project dependencies
+```
+
 ![PyMonitor Screenshot](docs/screenshot.png)
 
 ## Features
@@ -55,37 +86,15 @@ On macOS, PyMonitor uses:
 
 ## Installation
 
-### Prerequisites
+### Windows
 
-- Python 3.8 or higher
-- PyQt6
-- Required Python packages (see requirements.txt)
+1. Install Python 3.8 or later from [python.org](https://www.python.org/downloads/)
+2. Clone or download this repository
+3. Open a command prompt in the project directory
+4. Install dependencies: `pip install -r requirements.txt`
+5. Run the application: `python desktop_widget.pyw`
 
-### Setup
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/username/PyMonitor.git
-   cd PyMonitor
-   ```
-
-2. Create a virtual environment (recommended):
-   ```
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-4. Run PyMonitor:
-   ```
-   python desktop_widget.py
-   ```
-
-### Windows-specific Setup
+#### Windows-specific Setup for Enhanced Metrics
 
 For optimal metrics collection on Windows:
 
@@ -93,11 +102,36 @@ For optimal metrics collection on Windows:
 2. Run LibreHardwareMonitor before starting PyMonitor
 3. Ensure "Run as Administrator" is enabled for LibreHardwareMonitor
 
+### Linux
+
+1. Install Python 3.8 or later and required packages:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install python3 python3-pip python3-pyqt6 lm-sensors
+   ```
+2. Clone or download this repository
+3. Open a terminal in the project directory
+4. Install dependencies: `pip install -r requirements.txt`
+5. Run the application: `python desktop_widget.pyw`
+
 ## Usage
 
-- **Right-click** on the widget to access the context menu
-- **Drag** the widget to reposition it
-- Open **Settings** to customize appearance and displayed metrics
+### Widget Controls
+
+- **Drag**: Click and drag to move the widget
+- **Double-click**: Open settings dialog
+- **System Tray**: Right-click the system tray icon for additional options:
+  - Show/Hide Widget
+  - Settings
+  - Show/Hide Console
+  - Exit
+
+### Settings
+
+- **Appearance**: Customize font, colors, opacity, and position
+- **Display**: Choose which hardware components and metrics to show
+- **Layout**: Select vertical, horizontal, or grid layout
+- **Metrics Order**: Arrange the order of displayed metrics
 - Use the **Metrics Order** tab to reorder metrics within each category
 
 ## Configuration

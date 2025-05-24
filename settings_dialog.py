@@ -106,12 +106,22 @@ class SettingsDialog(QDialog):
         self.text_color_button.clicked.connect(self.pick_text_color)
         color_layout.addRow("Text Color:", self.text_color_button)
         
-        # Background color button
-        self.bg_color_button = QPushButton()
-        self.bg_color_button.setAutoFillBackground(True)
-        self.set_button_color(self.bg_color_button, self.config["appearance"]["background_color"])
-        self.bg_color_button.clicked.connect(self.pick_bg_color)
-        color_layout.addRow("Background Color:", self.bg_color_button)
+        # Border color button and checkbox
+        self.border_color_button = QPushButton()
+        self.border_color_button.setAutoFillBackground(True)
+        self.set_button_color(self.border_color_button, self.config["appearance"].get("border_color", "#000000"))
+        self.border_color_button.clicked.connect(self.pick_border_color)
+        
+        # Create a layout for border options
+        border_layout = QHBoxLayout()
+        
+        # Add a checkbox to enable/disable border
+        self.show_border_checkbox = QCheckBox("Show Border")
+        self.show_border_checkbox.setChecked(self.config["appearance"].get("show_border", False))
+        border_layout.addWidget(self.show_border_checkbox)
+        border_layout.addWidget(self.border_color_button)
+        
+        color_layout.addRow("Border:", border_layout)
         
         layout.addWidget(color_group)
         
@@ -625,14 +635,14 @@ class SettingsDialog(QDialog):
             self.config["appearance"]["font_color"] = color.name()
             self.set_button_color(self.text_color_button, color.name())
     
-    def pick_bg_color(self):
-        """Open color dialog to pick background color"""
-        current_color = QColor(self.config["appearance"]["background_color"])
-        color = QColorDialog.getColor(current_color, self, "Select Background Color")
+    def pick_border_color(self):
+        """Open color dialog to pick border color"""
+        current_color = QColor(self.config["appearance"].get("border_color", "#000000"))
+        color = QColorDialog.getColor(current_color, self, "Select Border Color")
         
         if color.isValid():
-            self.config["appearance"]["background_color"] = color.name()
-            self.set_button_color(self.bg_color_button, color.name())
+            self.config["appearance"]["border_color"] = color.name()
+            self.set_button_color(self.border_color_button, color.name())
     
     def reset_defaults(self):
         """Reset all settings to default values"""
@@ -642,7 +652,8 @@ class SettingsDialog(QDialog):
                 "font_family": "Consolas",
                 "font_size": 10,
                 "font_color": "#FFFFFF",
-                "background_color": "#000000",
+                "border_color": "#000000",
+                "show_border": False,
                 "opacity": 0.7,
                 "refresh_rate": 1.0,
                 "position": "bottom-right",
@@ -721,6 +732,9 @@ class SettingsDialog(QDialog):
         # Appearance tab
         self.config["appearance"]["opacity"] = self.opacity_slider.value() / 100.0
         self.config["appearance"]["padding"] = self.padding_spin.value()
+        
+        # Border settings
+        self.config["appearance"]["show_border"] = self.show_border_checkbox.isChecked()
         
         # Position offset values
         self.config["appearance"]["offset_x"] = self.offset_x_spin.value()

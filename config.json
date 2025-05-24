@@ -1,13 +1,13 @@
 {
     "appearance": {
-        "font_family": "Impact",
-        "font_size": 26,
-        "font_color": "#e3ee0d",
+        "font_family": "Bebas Neue",
+        "font_size": 28,
+        "font_color": "#bbbe00",
         "background_color": "#ffffff",
         "opacity": 1.0,
         "refresh_rate": 1.0,
         "position": "top-left",
-        "padding": 2,
+        "padding": 0,
         "custom_position": [
             100,
             100
@@ -16,7 +16,9 @@
         "max_height": 2160,
         "monitor_index": 1,
         "offset_x": 0,
-        "offset_y": -90
+        "offset_y": -90,
+        "border_color": "#ffffff",
+        "show_border": false
     },
     "display": {
         "show_cpu": true,
@@ -24,7 +26,7 @@
         "show_ram": true,
         "show_network": true,
         "show_titles": true,
-        "compact_mode": true,
+        "compact_mode": false,
         "show_cpu_usage": true,
         "show_cpu_temperature": true,
         "show_cpu_frequency": true,
@@ -87,8 +89,8 @@
             "ram_temperature": 3,
             "network_upload_speed": 0,
             "network_download_speed": 1,
-            "network_total_sent": 3,
-            "network_total_received": 4
+            "network_total_sent": 2,
+            "network_total_received": 3
         }
     }
 }
