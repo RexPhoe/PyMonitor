@@ -24,7 +24,8 @@ DEFAULT_CONFIG = {
         "max_height": 800,
         "monitor_index": 0,
         "offset_x": 0,
-        "offset_y": 0
+        "offset_y": 0,
+        "keep_on_top": True,  # Whether to keep the widget on top of other windows
     },
     "layout": {
         "type": "vertical",  # "vertical", "horizontal", or "grid"

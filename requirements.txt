@@ -1,15 +1,34 @@
-# Core system monitoring
-psutil>=5.9.0
+# Core system monitoring (cross-platform)
+psutil==5.9.5
+
+# Windows-specific dependencies
 wmi>=1.5.1; platform_system=="Windows"
-pynvml>=11.5.0; platform_system=="Windows" or platform_system=="Linux"
+pywin32>=305; platform_system=="Windows"
 
-# GUI and visualization
-PyQt6>=6.4.0
-qtawesome>=1.2.3
+# NVIDIA GPU monitoring (cross-platform)
+pynvml==11.5.0
 
-# Optional - for enhanced metrics on Linux
+# GUI and visualization (cross-platform)
+# IMPORTANTE: Estas versiones son críticas para solucionar el problema del plugin cocoa en macOS
+PyQt6==6.4.2
+PyQt6-Qt6==6.4.2
+PyQt6-sip==13.4.1
+qtawesome==1.2.3
+
+# Linux-specific optional dependencies
 py3nvml>=0.2.7; platform_system=="Linux"
 
-# Development tools (optional)
+# macOS-specific dependencies
+# Paquetes adicionales para Mac para garantizar compatibilidad
+packaging==23.1; platform_system=="Darwin"
+pyparsing==3.1.1; platform_system=="Darwin"
+setuptools==68.2.2; platform_system=="Darwin"
+wheel==0.41.2; platform_system=="Darwin"
+
+# Development and packaging tools (platform-specific)
 pyinstaller>=5.7.0; platform_system=="Windows"
-pywin32>=305; platform_system=="Windows"
+pyinstaller>=5.7.0; platform_system=="Darwin"
+pyinstaller>=5.7.0; platform_system=="Linux"
+
+# Herramientas para compatibilidad mejorada en entornos virtuales
+virtualenv==20.24.5

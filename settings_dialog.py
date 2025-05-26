@@ -257,6 +257,12 @@ class SettingsDialog(QDialog):
         self.compact_mode.setChecked(self.config["display"]["compact_mode"])
         options_layout.addWidget(self.compact_mode)
         
+        # Keep on top option
+        self.keep_on_top = QCheckBox("Keep Window on Top")
+        self.keep_on_top.setChecked(self.config["appearance"].get("keep_on_top", True))
+        self.keep_on_top.setToolTip("When enabled, the widget will stay on top of other windows")
+        options_layout.addWidget(self.keep_on_top)
+        
         layout.addWidget(options_group)
         
         # Create detailed metric options for each component
@@ -760,6 +766,9 @@ class SettingsDialog(QDialog):
         self.config["display"]["show_network"] = self.show_network.isChecked()
         self.config["display"]["show_titles"] = self.show_titles.isChecked()
         self.config["display"]["compact_mode"] = self.compact_mode.isChecked()
+        
+        # Keep on top setting
+        self.config["appearance"]["keep_on_top"] = self.keep_on_top.isChecked()
         
         # CPU detailed metrics
         self.config["display"]["show_cpu_usage"] = self.show_cpu_usage.isChecked()

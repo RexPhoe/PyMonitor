@@ -1,4 +1,6 @@
 import platform
+import subprocess
+import re
 from typing import Dict, Optional
 from .logging_utils import get_logger
 
@@ -19,17 +21,18 @@ except:
 
 # LHM_AVAILABLE global flag is removed, connection will be attempted on-demand
 
-# WMI for LibreHardwareMonitor
+# WMI for LibreHardwareMonitor (Windows only)
 LHM_WMI_AVAILABLE = False
 WMIService = None
-try:
-    import wmi
-    WMIService = wmi # Assign to a consistent name for use later
-    LHM_WMI_AVAILABLE = True
-except ImportError:
-    logger.info("Python WMI module not found. LibreHardwareMonitor metrics may be unavailable for GPU.")
-except Exception as e:
-    logger.error(f"Error initializing WMI for LHM: {e}")
+if platform.system() == "Windows":
+    try:
+        import wmi
+        WMIService = wmi # Assign to a consistent name for use later
+        LHM_WMI_AVAILABLE = True
+    except ImportError:
+        logger.info("Python WMI module not found. LibreHardwareMonitor metrics may be unavailable for GPU.")
+    except Exception as e:
+        logger.error(f"Error initializing WMI for LHM: {e}")
 
 class GPUMetricsCollector:
     """A class to handle GPU metrics collection"""
@@ -243,6 +246,156 @@ class GPUMetricsCollector:
 
         return metrics
 
+    def _get_macos_gpu_metrics(self) -> Dict[str, Optional[float]]:
+        """Get GPU metrics on macOS"""
+        metrics = {
+            "core_frequency": None,
+            "core_usage": None,
+            "core_temperature": None,
+            "memory_frequency": None,
+            "vram_usage_percent": None,
+            "memory_temperature": None,
+            "hotspot_temperature": None,
+            "fan_speed": None,
+            "vram_used_gb": None,
+            "vram_total_gb": None
+        }
+        
+        # First try to get GPU name and model
+        try:
+            output = subprocess.check_output(["system_profiler", "SPDisplaysDataType"]).decode()
+            # Parse the output to get GPU info
+            # Look for lines like "Chipset Model: Intel UHD Graphics 630"
+            gpu_model_match = re.search(r'Chipset Model:\s*(.+)', output)
+            if gpu_model_match:
+                gpu_model = gpu_model_match.group(1).strip()
+                logger.info(f"Detected GPU: {gpu_model}")
+                
+            # Check for VRAM info
+            vram_match = re.search(r'VRAM \(Total\):\s*(\d+)\s*([MG]B)', output)
+            if vram_match:
+                vram_amount = float(vram_match.group(1))
+                vram_unit = vram_match.group(2)
+                
+                # Convert to GB if needed
+                if vram_unit == "MB":
+                    metrics["vram_total_gb"] = vram_amount / 1024
+                else:  # GB
+                    metrics["vram_total_gb"] = vram_amount
+                    
+            # Try to get GPU usage using ioreg if it's an AMD or NVIDIA GPU
+            if gpu_model and ("AMD" in gpu_model or "Radeon" in gpu_model or "NVIDIA" in gpu_model or "GeForce" in gpu_model):
+                try:
+                    # This might not work on all Macs
+                    ioreg_output = subprocess.check_output(["ioreg", "-l"]).decode()
+                    # Look for GPU utilization percentage
+                    util_match = re.search(r'"GPU Activity"\s*=\s*(\d+)', ioreg_output)
+                    if util_match:
+                        metrics["core_usage"] = float(util_match.group(1))
+                except Exception as e:
+                    logger.debug(f"Error getting GPU usage from ioreg: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Error getting macOS GPU info: {e}")
+        
+        return metrics
+    
+    def _get_linux_gpu_metrics(self) -> Dict[str, Optional[float]]:
+        """Get GPU metrics on Linux"""
+        metrics = {
+            "core_frequency": None,
+            "core_usage": None,
+            "core_temperature": None,
+            "memory_frequency": None,
+            "vram_usage_percent": None,
+            "memory_temperature": None,
+            "hotspot_temperature": None,
+            "fan_speed": None,
+            "vram_used_gb": None,
+            "vram_total_gb": None
+        }
+        
+        # Try to detect GPU using lspci
+        try:
+            output = subprocess.check_output(["lspci", "-v"]).decode()
+            # Check if NVIDIA is present
+            if "NVIDIA" in output:
+                logger.info("NVIDIA GPU detected in Linux")
+                # If NVIDIA is present and pynvml is available, metrics should already be collected
+                # by _get_nvidia_metrics() so we don't need to do anything here
+                pass
+                
+            # Check if AMD is present
+            elif "AMD" in output or "Radeon" in output:
+                logger.info("AMD GPU detected in Linux")
+                # Try to get AMD GPU info using rocm-smi
+                try:
+                    rocm_output = subprocess.check_output(["rocm-smi"], timeout=2).decode()
+                    # Parse rocm-smi output
+                    temp_match = re.search(r'(\d+)C\s+\|\s+Temperature', rocm_output)
+                    if temp_match:
+                        metrics["core_temperature"] = float(temp_match.group(1))
+                        
+                    # Try to get GPU usage
+                    usage_match = re.search(r'(\d+)%\s+\|\s+GPU use', rocm_output)
+                    if usage_match:
+                        metrics["core_usage"] = float(usage_match.group(1))
+                        
+                    # Try to get VRAM info
+                    vram_match = re.search(r'(\d+)/(\d+)\s*MB\s+\|\s+VRAM', rocm_output)
+                    if vram_match:
+                        used_mb = float(vram_match.group(1))
+                        total_mb = float(vram_match.group(2))
+                        metrics["vram_used_gb"] = used_mb / 1024
+                        metrics["vram_total_gb"] = total_mb / 1024
+                        metrics["vram_usage_percent"] = (used_mb / total_mb) * 100 if total_mb > 0 else None
+                except FileNotFoundError:
+                    logger.debug("rocm-smi not found. Install ROCm for AMD GPU monitoring.")
+                except Exception as e:
+                    logger.debug(f"Error getting AMD GPU metrics: {e}")
+                    
+                # If rocm-smi failed, try using sensors for temperature
+                if metrics["core_temperature"] is None:
+                    try:
+                        sensors_output = subprocess.check_output(["sensors"], timeout=2).decode()
+                        # Look for patterns like "edge: +45.0°C"
+                        temp_match = re.search(r'edge:\s+\+(\d+\.\d+)°C', sensors_output)
+                        if temp_match:
+                            metrics["core_temperature"] = float(temp_match.group(1))
+                    except Exception as e:
+                        logger.debug(f"Error getting GPU temperature from sensors: {e}")
+                
+            # Check if Intel is present
+            elif "Intel" in output and "Graphics" in output:
+                logger.info("Intel GPU detected in Linux")
+                # Try to get Intel GPU info (without requiring sudo)
+                try:
+                    # Try to get basic GPU info without requiring sudo
+                    with open('/sys/class/drm/card0/device/gpu_busy_percent', 'r') as f:
+                        gpu_busy = f.read().strip()
+                        if gpu_busy.isdigit():
+                            metrics["core_usage"] = float(gpu_busy)
+                except FileNotFoundError:
+                    # Alternative approach: try glxinfo
+                    try:
+                        glx_output = subprocess.check_output(["glxinfo"], timeout=2).decode()
+                        # Just check if rendering is available
+                        if "direct rendering: Yes" in glx_output:
+                            logger.debug("Intel GPU detected with OpenGL support")
+                    except FileNotFoundError:
+                        logger.debug("No GPU monitoring tools found for Intel GPU on Linux")
+                    except Exception as e:
+                        logger.debug(f"Error getting Intel GPU metrics: {e}")
+                except Exception as e:
+                    logger.debug(f"Error getting Intel GPU metrics: {e}")
+        
+        except FileNotFoundError:
+            logger.debug("lspci command not found. Install pciutils for hardware detection.")
+        except Exception as e:
+            logger.error(f"Error detecting GPU in Linux: {e}")
+        
+        return metrics
+
     def get_metrics(self) -> Dict[str, Optional[float]]:
         """Get GPU metrics from available sources
 
@@ -259,20 +412,32 @@ class GPUMetricsCollector:
             - hotspot_temperature: GPU hotspot temperature in Celsius
             - fan_speed: GPU Fan speed percentage
         """
-        # Try NVIDIA metrics first
+        # Try NVIDIA metrics first (works on all platforms if NVIDIA GPU and drivers are present)
         metrics = self._get_nvidia_metrics()
 
-        # If we're on Windows, try to augment with LibreHardwareMonitor data
-        # This is useful if NVIDIA pynvml isn't available/working or for non-NVIDIA cards.
+        # Platform-specific metric collection
         if self.platform == "Windows":
-            # If NVIDIA metrics are complete, we might not need LHM for GPU, 
-            # but LHM could provide data for AMD or Intel iGPUs.
-            # For now, always try LHM if on Windows and see if it fills any gaps or provides primary data.
+            # If NVIDIA metrics are incomplete, try to augment with LibreHardwareMonitor data
+            # LHM could also provide data for AMD or Intel iGPUs
             lhm_gpu_metrics = self._get_lhm_metrics()
             for key, value in lhm_gpu_metrics.items():
                 if metrics.get(key) is None and value is not None: # Fill gaps
                     metrics[key] = value
                 elif key not in metrics and value is not None: # Add new metrics if LHM has them
+                     metrics[key] = value
+        elif self.platform == "Darwin":  # macOS
+            macos_metrics = self._get_macos_gpu_metrics()
+            for key, value in macos_metrics.items():
+                if metrics.get(key) is None and value is not None: # Fill gaps
+                    metrics[key] = value
+                elif key not in metrics and value is not None: # Add new metrics if available
+                     metrics[key] = value
+        elif self.platform == "Linux":
+            linux_metrics = self._get_linux_gpu_metrics()
+            for key, value in linux_metrics.items():
+                if metrics.get(key) is None and value is not None: # Fill gaps
+                    metrics[key] = value
+                elif key not in metrics and value is not None: # Add new metrics if available
                      metrics[key] = value
                      
         return metrics

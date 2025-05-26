@@ -68,20 +68,15 @@ class MainWindow(QMainWindow):
     
     def setup_ui(self):
         """Set up the main UI components"""
-        # Set window flags for frameless, always-on-top window
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint | 
-            Qt.WindowType.WindowStaysOnTopHint | 
-            Qt.WindowType.Tool |
-            Qt.WindowType.NoDropShadowWindowHint |
-            Qt.WindowType.MSWindowsFixedSizeDialogHint |
-            Qt.WindowType.BypassWindowManagerHint
-        )
+        # Apply window flags based on configuration
+        self.update_window_flags()
         
         # Make background transparent
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
+        
+
         
         # Use fixed size policy to match the original behavior
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -208,6 +203,36 @@ class MainWindow(QMainWindow):
         # Move widget to calculated position
         self.move(position)
     
+    def update_window_flags(self):
+        """Update window flags based on the keep_on_top setting"""
+        import platform
+        
+        # Determine if we should keep the window on top
+        keep_on_top = self.config["appearance"].get("keep_on_top", True)
+        
+        # Start with frameless window
+        flags = Qt.WindowType.FramelessWindowHint
+        
+        # Add stay-on-top flag if enabled
+        if keep_on_top:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        
+        # Platform-specific flags
+        if platform.system() == "Darwin":  # macOS
+            # macOS-specific flags - simpler set to avoid compatibility issues
+            flags |= Qt.WindowType.Tool
+        else:  # Windows and Linux
+            # Additional flags for Windows and Linux
+            flags |= (
+                Qt.WindowType.Tool |
+                Qt.WindowType.NoDropShadowWindowHint |
+                Qt.WindowType.MSWindowsFixedSizeDialogHint |
+                Qt.WindowType.BypassWindowManagerHint
+            )
+        
+        # Apply the flags
+        self.setWindowFlags(flags)
+    
     def update_config(self, new_config):
         """
         Update the configuration and apply changes.
@@ -220,6 +245,9 @@ class MainWindow(QMainWindow):
         
         # Update opacity
         self.setWindowOpacity(self.config["appearance"]["opacity"])
+        
+        # Update window flags (for keep_on_top setting)
+        self.update_window_flags()
         
         # Update position manager
         self.position_manager = PositionManager(self.config)

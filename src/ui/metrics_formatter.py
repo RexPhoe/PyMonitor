@@ -28,13 +28,18 @@ class MetricsFormatter:
         temp = data.get("temperature")
         formatted["cpu_temperature"] = f"Temp: {temp:.1f}°C" if temp is not None else "Temp: N/A"
         
-        # CPU Frequency
+        # CPU Frequency or Model
         freq = data.get("frequency")
+        cpu_model = data.get("cpu_model")
+        
         if freq is not None:
             # Convert MHz to GHz if needed
             if freq > 1000:  # If value is in MHz
                 freq = freq / 1000
             formatted["cpu_frequency"] = f"Freq: {freq:.2f} GHz"
+        elif cpu_model is not None:
+            # Use CPU model when frequency is unavailable (especially for Apple Silicon)
+            formatted["cpu_frequency"] = f"CPU: {cpu_model}"
         else:
             formatted["cpu_frequency"] = "Freq: N/A"
         
