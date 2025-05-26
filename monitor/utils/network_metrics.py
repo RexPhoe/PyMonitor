@@ -1,24 +1,26 @@
 import psutil
 import time
 import platform
+import subprocess
+import re
 from typing import Dict, Optional, Tuple
 from .logging_utils import get_logger
 
-# WMI for LibreHardwareMonitor
+# Configure logger (must be before WMI import)
+logger = get_logger(__name__)
+
+# WMI for LibreHardwareMonitor (Windows only)
 LHM_WMI_AVAILABLE = False
 WMIService = None
-try:
-    if platform.system() == "Windows": # Only attempt WMI import on Windows
+if platform.system() == "Windows":
+    try:
         import wmi
         WMIService = wmi
         LHM_WMI_AVAILABLE = True
-except ImportError:
-    logger.info("Python WMI module not found. LibreHardwareMonitor metrics for network will be unavailable.")
-except Exception as e:
-    logger.error(f"Error initializing WMI for LHM network metrics: {e}")
-
-# Configure logger
-logger = get_logger(__name__)
+    except ImportError:
+        logger.info("Python WMI module not found. LibreHardwareMonitor metrics for network will be unavailable.")
+    except Exception as e:
+        logger.error(f"Error initializing WMI for LHM network metrics: {e}")
 
 
 class NetworkMetricsCollector:
@@ -89,7 +91,7 @@ class NetworkMetricsCollector:
 
         except Exception as e:
             logger.error(f"Error getting network metrics from psutil: {e}")
-            # psutil failed, clear psutil-based values and try LHM for totals.
+            # psutil failed, clear psutil-based values and try platform-specific alternatives
             metrics = {
                 "upload_speed": None,
                 "download_speed": None,
@@ -101,6 +103,7 @@ class NetworkMetricsCollector:
             self.last_bytes_recv = 0
             # self.last_time is not reset here, it reflects the last known good time or init time.
 
+            # Try platform-specific fallbacks
             if self.platform == "Windows" and LHM_WMI_AVAILABLE:
                 logger.info("Attempting to get network totals from LHM as psutil failed.")
                 lhm_totals = self._get_lhm_network_totals()
@@ -109,13 +112,91 @@ class NetworkMetricsCollector:
                         metrics["total_sent"] = lhm_totals["lhm_total_sent"] / (1024**3) # GB
                     if lhm_totals.get("lhm_total_recv") is not None:
                         metrics["total_received"] = lhm_totals["lhm_total_recv"] / (1024**3) # GB
+            elif self.platform == "Darwin":  # macOS
+                logger.info("Attempting to get network metrics from netstat as psutil failed.")
+                mac_metrics = self._get_macos_network_metrics()
+                if mac_metrics:
+                    for key, value in mac_metrics.items():
+                        if value is not None:
+                            metrics[key] = value
+            elif self.platform == "Linux":
+                logger.info("Attempting to get network metrics from proc as psutil failed.")
+                linux_metrics = self._get_linux_network_metrics()
+                if linux_metrics:
+                    for key, value in linux_metrics.items():
+                        if value is not None:
+                            metrics[key] = value
             
-            logger.debug(f"Network Metrics (psutil failed, LHM fallback attempted): {metrics}")
+            logger.debug(f"Network Metrics (psutil failed, platform fallback attempted): {metrics}")
             return metrics
 
+    def _get_macos_network_metrics(self) -> Optional[Dict[str, float]]:
+        """Get network metrics on macOS using netstat"""
+        try:
+            # Use netstat to get network interface statistics
+            output = subprocess.check_output(["netstat", "-ib"]).decode()
+            lines = output.strip().split('\n')
+            
+            # Initialize totals
+            total_sent = 0
+            total_received = 0
+            
+            # Parse output (skip header row)
+            for line in lines[1:]:
+                parts = line.split()
+                if len(parts) >= 10 and parts[0] != 'lo0':  # Skip loopback
+                    # Format varies, but typically: bytes in at index 6, bytes out at index 9
+                    try:
+                        bytes_in = int(parts[6])
+                        bytes_out = int(parts[9])
+                        total_received += bytes_in
+                        total_sent += bytes_out
+                    except (ValueError, IndexError):
+                        pass
+            
+            return {
+                "total_sent": total_sent / (1024**3),  # Convert to GB
+                "total_received": total_received / (1024**3)  # Convert to GB
+            }
+        except Exception as e:
+            logger.error(f"Error getting macOS network metrics: {e}")
+            return None
+    
+    def _get_linux_network_metrics(self) -> Optional[Dict[str, float]]:
+        """Get network metrics on Linux using /proc/net/dev"""
+        try:
+            # Read network statistics from /proc/net/dev
+            with open('/proc/net/dev', 'r') as f:
+                lines = f.readlines()
+            
+            # Initialize totals
+            total_sent = 0
+            total_received = 0
+            
+            # Parse output (skip header rows)
+            for line in lines[2:]:
+                parts = line.strip().split(':')
+                if len(parts) == 2:
+                    iface = parts[0].strip()
+                    if iface != 'lo':  # Skip loopback
+                        stats = parts[1].strip().split()
+                        if len(stats) >= 16:
+                            bytes_received = int(stats[0])
+                            bytes_sent = int(stats[8])
+                            total_received += bytes_received
+                            total_sent += bytes_sent
+            
+            return {
+                "total_sent": total_sent / (1024**3),  # Convert to GB
+                "total_received": total_received / (1024**3)  # Convert to GB
+            }
+        except Exception as e:
+            logger.error(f"Error getting Linux network metrics: {e}")
+            return None
+    
     def _get_lhm_network_totals(self) -> Optional[Dict[str, float]]:
         """Get total network data sent/received from LHM sensors."""
-        if not LHM_WMI_AVAILABLE or WMIService is None:
+        if not LHM_WMI_AVAILABLE or WMIService is None or self.platform != "Windows":
             logger.debug("LHM WMI not available for Network metrics.")
             return None
 
